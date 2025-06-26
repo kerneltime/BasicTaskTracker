@@ -180,13 +180,13 @@
         }
 
         .task-input-container {
-            display: grid;
-            grid-template-columns: 1fr 160px auto;
-            gap: 12px;
+            display: flex;
+            gap: 8px;
             margin-bottom: 16px;
         }
 
         .task-input {
+            flex: 1;
             padding: 12px 16px;
             border: 1px solid #3f3f46;
             border-radius: 8px;
@@ -206,32 +206,50 @@
             color: #71717a;
         }
 
-        .priority-select {
+        .priority-add-btn {
             padding: 12px 16px;
-            border: 1px solid #3f3f46;
-            border-radius: 8px;
-            font-size: 14px;
-            background: #0a0a0b;
-            color: #fafafa;
-            cursor: pointer;
-        }
-
-        .add-btn {
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            color: white;
-            border: none;
-            padding: 12px 24px;
+            border: 1px solid;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 600;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
             white-space: nowrap;
         }
 
-        .add-btn:hover {
+        .priority-add-btn.high {
+            background: rgba(239, 68, 68, 0.15);
+            color: #fca5a5;
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .priority-add-btn.high:hover {
+            background: rgba(239, 68, 68, 0.25);
             transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.3);
+        }
+
+        .priority-add-btn.medium {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fcd34d;
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .priority-add-btn.medium:hover {
+            background: rgba(245, 158, 11, 0.25);
+            transform: translateY(-1px);
+        }
+
+        .priority-add-btn.low {
+            background: rgba(34, 197, 94, 0.15);
+            color: #86efac;
+            border-color: rgba(34, 197, 94, 0.3);
+        }
+
+        .priority-add-btn.low:hover {
+            background: rgba(34, 197, 94, 0.25);
+            transform: translateY(-1px);
         }
 
         .sync-controls {
@@ -396,6 +414,13 @@
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.3px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .priority-badge:hover {
+            transform: scale(1.05);
+            opacity: 0.8;
         }
 
         .priority-high {
@@ -577,8 +602,13 @@
             }
             
             .task-input-container {
-                grid-template-columns: 1fr;
+                flex-direction: column;
                 gap: 8px;
+            }
+
+            .priority-add-btn {
+                flex: 1;
+                text-align: center;
             }
             
             .filters {
@@ -680,12 +710,9 @@
         <div class="add-task-section">
             <div class="task-input-container">
                 <input type="text" class="task-input" id="taskInput" placeholder="What needs to be done?">
-                <select class="priority-select" id="prioritySelect">
-                    <option value="low">Low Priority</option>
-                    <option value="medium" selected>Medium Priority</option>
-                    <option value="high">High Priority</option>
-                </select>
-                <button class="add-btn" onclick="addTask()">Add Task</button>
+                <button class="priority-add-btn high" onclick="addTaskWithPriority('high')">🔥 High</button>
+                <button class="priority-add-btn medium" onclick="addTaskWithPriority('medium')">🟡 Medium</button>
+                <button class="priority-add-btn low" onclick="addTaskWithPriority('low')">🟢 Low</button>
             </div>
         </div>
 
@@ -726,8 +753,6 @@
         let tasks = [];
         let currentFilter = 'all';
         let taskIdCounter = 1;
-        // The githubConfig object will hold non-sensitive parts of the config.
-        // The token is read from the input field on-demand for security.
         let githubConfig = {};
         let autoSyncEnabled = false;
 
@@ -744,7 +769,7 @@
             
             document.getElementById('taskInput').addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
-                    addTask();
+                    addTaskWithPriority('medium'); // Default to medium priority on Enter
                 }
             });
 
@@ -775,53 +800,32 @@
             }
         }
 
-        // Helper function to get the latest config directly from the UI
-        function getGitHubConfigFromUI() {
-            return {
-                token: document.getElementById('githubToken').value.trim(),
-                repo: document.getElementById('githubRepo').value.trim(),
-                path: document.getElementById('githubPath').value.trim() || 'tasks.md'
-            };
-        }
-
         // GitHub configuration
         function loadGitHubConfig() {
             const saved = localStorage.getItem('taskTracker_github_config');
             if (saved) {
-                const savedConfig = JSON.parse(saved);
-                // Load non-sensitive data
-                githubConfig.repo = savedConfig.repo || '';
-                githubConfig.path = savedConfig.path || 'tasks.md';
-                
-                document.getElementById('githubRepo').value = githubConfig.repo;
-                document.getElementById('githubPath').value = githubConfig.path;
+                githubConfig = JSON.parse(saved);
+                document.getElementById('githubToken').value = githubConfig.token || '';
+                document.getElementById('githubRepo').value = githubConfig.repo || '';
+                document.getElementById('githubPath').value = githubConfig.path || 'tasks.md';
+                updateSyncStatus();
             }
-            // Token is intentionally not loaded from storage.
-            updateSyncStatus();
         }
 
         function saveGitHubConfig() {
-            const currentConfig = getGitHubConfigFromUI();
+            githubConfig = {
+                token: document.getElementById('githubToken').value.trim(),
+                repo: document.getElementById('githubRepo').value.trim(),
+                path: document.getElementById('githubPath').value.trim() || 'tasks.md'
+            };
             
-            if (currentConfig.repo) {
-                // Save only non-sensitive parts to localStorage
-                const configToSave = {
-                    repo: currentConfig.repo,
-                    path: currentConfig.path
-                };
-                localStorage.setItem('taskTracker_github_config', JSON.stringify(configToSave));
-
-                // Update in-memory config for the current session
-                githubConfig = currentConfig;
-
-                showAlert('GitHub configuration saved! Note: Your token is not stored and must be re-entered each session.', 'success');
+            if (githubConfig.token && githubConfig.repo) {
+                localStorage.setItem('taskTracker_github_config', JSON.stringify(githubConfig));
+                showAlert('GitHub configuration saved!', 'success');
                 updateSyncStatus();
-
-                if (currentConfig.token) {
-                    toggleConfig();
-                }
+                toggleConfig();
             } else {
-                showAlert('Please fill in the repository name.', 'error');
+                showAlert('Please fill in all required fields.', 'error');
             }
         }
 
@@ -838,8 +842,7 @@
         }
 
         function isGitHubConfigured() {
-            const config = getGitHubConfigFromUI();
-            return config.token && config.repo && config.path;
+            return githubConfig.token && githubConfig.repo && githubConfig.path;
         }
 
         function toggleConfig() {
@@ -859,25 +862,18 @@
             const indicator = document.getElementById('syncIndicator');
             const status = document.getElementById('syncStatus');
             const toggle = document.getElementById('configToggle');
-            const config = getGitHubConfigFromUI();
-
-            const isReadyToSync = config.token && config.repo;
-
-            if (isReadyToSync) {
+            
+            if (isGitHubConfigured()) {
                 indicator.className = 'sync-indicator';
-                status.textContent = 'Ready to sync';
+                status.textContent = 'GitHub configured';
                 toggle.textContent = 'Settings';
-            } else if (config.repo || localStorage.getItem('taskTracker_github_config')) {
-                indicator.className = 'sync-indicator error';
-                status.textContent = 'Token required';
-                toggle.textContent = 'Settings';
+                enableSyncButtons(true);
             } else {
                 indicator.className = 'sync-indicator error';
                 status.textContent = 'Not configured';
                 toggle.textContent = 'Setup GitHub';
+                enableSyncButtons(false);
             }
-            
-            enableSyncButtons(isReadyToSync);
         }
 
         function enableSyncButtons(enabled) {
@@ -1002,18 +998,17 @@
 
         // GitHub API functions
         async function testConnection() {
-            const currentConfig = getGitHubConfigFromUI();
             if (!isGitHubConfigured()) {
-                showAlert('Please provide GitHub token and repository.', 'error');
+                showAlert('Please configure GitHub settings first.', 'error');
                 return;
             }
 
             setSyncStatus('Testing connection...', 'syncing');
             
             try {
-                const response = await fetch(`${GITHUB_API_BASE}/repos/${currentConfig.repo}`, {
+                const response = await fetch(`${GITHUB_API_BASE}/repos/${githubConfig.repo}`, {
                     headers: {
-                        'Authorization': `token ${currentConfig.token}`,
+                        'Authorization': `token ${githubConfig.token}`,
                         'Accept': 'application/vnd.github.v3+json'
                     }
                 });
@@ -1038,7 +1033,6 @@
         }
 
         async function syncToGitHub() {
-            const currentConfig = getGitHubConfigFromUI();
             if (!isGitHubConfigured()) {
                 showAlert('Please configure GitHub settings first.', 'error');
                 return;
@@ -1053,9 +1047,9 @@
                 // Get current file SHA if it exists
                 let sha = null;
                 try {
-                    const getResponse = await fetch(`${GITHUB_API_BASE}/repos/${currentConfig.repo}/contents/${currentConfig.path}`, {
+                    const getResponse = await fetch(`${GITHUB_API_BASE}/repos/${githubConfig.repo}/contents/${githubConfig.path}`, {
                         headers: {
-                            'Authorization': `token ${currentConfig.token}`,
+                            'Authorization': `token ${githubConfig.token}`,
                             'Accept': 'application/vnd.github.v3+json'
                         }
                     });
@@ -1080,10 +1074,10 @@
                     putData.sha = sha;
                 }
 
-                const putResponse = await fetch(`${GITHUB_API_BASE}/repos/${currentConfig.repo}/contents/${currentConfig.path}`, {
+                const putResponse = await fetch(`${GITHUB_API_BASE}/repos/${githubConfig.repo}/contents/${githubConfig.path}`, {
                     method: 'PUT',
                     headers: {
-                        'Authorization': `token ${currentConfig.token}`,
+                        'Authorization': `token ${githubConfig.token}`,
                         'Accept': 'application/vnd.github.v3+json',
                         'Content-Type': 'application/json'
                     },
@@ -1105,7 +1099,6 @@
         }
 
         async function syncFromGitHub() {
-            const currentConfig = getGitHubConfigFromUI();
             if (!isGitHubConfigured()) {
                 showAlert('Please configure GitHub settings first.', 'error');
                 return;
@@ -1114,9 +1107,9 @@
             setSyncStatus('Pulling from GitHub...', 'syncing');
             
             try {
-                const response = await fetch(`${GITHUB_API_BASE}/repos/${currentConfig.repo}/contents/${currentConfig.path}`, {
+                const response = await fetch(`${GITHUB_API_BASE}/repos/${githubConfig.repo}/contents/${githubConfig.path}`, {
                     headers: {
-                        'Authorization': `token ${currentConfig.token}`,
+                        'Authorization': `token ${githubConfig.token}`,
                         'Accept': 'application/vnd.github.v3+json'
                     }
                 });
@@ -1174,9 +1167,8 @@
         }
 
         // Task management functions
-        function addTask() {
+        function addTaskWithPriority(priority) {
             const taskInput = document.getElementById('taskInput');
-            const prioritySelect = document.getElementById('prioritySelect');
             const taskText = taskInput.value.trim();
 
             if (taskText === '') {
@@ -1187,7 +1179,7 @@
             const newTask = {
                 id: taskIdCounter++,
                 text: taskText,
-                priority: prioritySelect.value,
+                priority: priority,
                 completed: false,
                 createdAt: new Date().toLocaleString()
             };
@@ -1198,6 +1190,27 @@
             saveToStorage();
             updateTaskList();
             updateStats();
+        }
+
+        function changePriority(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            // Cycle through priorities: low -> medium -> high -> low
+            const priorities = ['low', 'medium', 'high'];
+            const currentIndex = priorities.indexOf(task.priority);
+            const nextIndex = (currentIndex + 1) % priorities.length;
+            
+            task.priority = priorities[nextIndex];
+            
+            saveToStorage();
+            updateTaskList();
+            updateStats();
+        }
+
+        // Legacy function for backward compatibility
+        function addTask() {
+            addTaskWithPriority('medium');
         }
 
         function toggleTask(taskId) {
@@ -1299,7 +1312,9 @@
                         <div class="task-content">
                             <div class="task-text">${task.text}</div>
                             <div class="task-meta">
-                                <span class="priority-badge priority-${task.priority}">${task.priority}</span>
+                                <span class="priority-badge priority-${task.priority}" 
+                                      onclick="changePriority(${task.id})" 
+                                      title="Click to change priority">${task.priority}</span>
                                 <span>Created: ${task.createdAt}</span>
                             </div>
                         </div>
@@ -1329,7 +1344,9 @@
                         <div class="task-content">
                             <div class="task-text">${task.text}</div>
                             <div class="task-meta">
-                                <span class="priority-badge priority-${task.priority}">${task.priority}</span>
+                                <span class="priority-badge priority-${task.priority}" 
+                                      onclick="changePriority(${task.id})" 
+                                      title="Click to change priority">${task.priority}</span>
                                 <span>Created: ${task.createdAt}</span>
                             </div>
                         </div>
