@@ -1,0 +1,1357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Tracker - GitHub Sync</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0b;
+            color: #e4e4e7;
+            min-height: 100vh;
+            padding: 12px;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #111113;
+            border-radius: 12px;
+            border: 1px solid #27272a;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #18181b 0%, #27272a 100%);
+            color: #fafafa;
+            padding: 20px 24px;
+            border-bottom: 1px solid #27272a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .header-content {
+            flex: 1;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .header h1 {
+            font-size: 1.8em;
+            margin-bottom: 4px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #fafafa 0%, #a1a1aa 100%);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            opacity: 0.7;
+            font-size: 0.9em;
+            color: #a1a1aa;
+            margin: 0;
+        }
+
+        .sync-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(39, 39, 42, 0.8);
+            padding: 8px 16px;
+            border-radius: 12px;
+            font-size: 13px;
+            border: 1px solid #3f3f46;
+        }
+
+        .sync-indicator {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+
+        .sync-indicator.syncing {
+            background: #f59e0b;
+            animation: pulse 1.5s infinite;
+        }
+
+        .sync-indicator.error {
+            background: #ef4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.1); }
+        }
+
+        .github-config {
+            background: #18181b;
+            border-bottom: 1px solid #27272a;
+            padding: 16px 24px;
+        }
+
+        .github-config.hidden {
+            display: none;
+        }
+
+        .github-config h3 {
+            margin-bottom: 12px;
+            color: #fafafa;
+            font-weight: 500;
+            font-size: 1em;
+        }
+
+        .config-row {
+            display: grid;
+            grid-template-columns: 120px 1fr auto;
+            gap: 12px;
+            margin-bottom: 12px;
+            align-items: center;
+        }
+
+        .config-row label {
+            font-weight: 500;
+            color: #d4d4d8;
+            font-size: 13px;
+        }
+
+        .config-input {
+            padding: 8px 12px;
+            border: 1px solid #3f3f46;
+            border-radius: 6px;
+            font-size: 13px;
+            background: #0a0a0b;
+            color: #fafafa;
+            transition: border-color 0.2s ease;
+        }
+
+        .config-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+        }
+
+        .config-btn {
+            padding: 8px 12px;
+            background: #6366f1;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: background 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .config-btn:hover {
+            background: #5856eb;
+        }
+
+        .config-btn.secondary {
+            background: #52525b;
+        }
+
+        .config-btn.secondary:hover {
+            background: #71717a;
+        }
+
+        .add-task-section {
+            padding: 20px 24px;
+            border-bottom: 1px solid #27272a;
+        }
+
+        .task-input-container {
+            display: grid;
+            grid-template-columns: 1fr 160px auto;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .task-input {
+            padding: 12px 16px;
+            border: 1px solid #3f3f46;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #0a0a0b;
+            color: #fafafa;
+            transition: border-color 0.2s ease;
+        }
+
+        .task-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+        }
+
+        .task-input::placeholder {
+            color: #71717a;
+        }
+
+        .priority-select {
+            padding: 12px 16px;
+            border: 1px solid #3f3f46;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #0a0a0b;
+            color: #fafafa;
+            cursor: pointer;
+        }
+
+        .add-btn {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .add-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.3);
+        }
+
+        .sync-controls {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .sync-btn {
+            background: #374151;
+            color: #d1d5db;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: background 0.2s ease;
+            border: 1px solid #4b5563;
+            white-space: nowrap;
+        }
+
+        .sync-btn:hover {
+            background: #4b5563;
+            border-color: #6b7280;
+        }
+
+        .sync-btn:disabled {
+            background: #27272a;
+            border-color: #3f3f46;
+            color: #71717a;
+            cursor: not-allowed;
+        }
+
+        .tasks-section {
+            padding: 20px 24px;
+        }
+
+        .filters {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 6px 16px;
+            border: 1px solid #3f3f46;
+            background: #18181b;
+            color: #a1a1aa;
+            border-radius: 16px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .filter-btn.active {
+            background: #6366f1;
+            color: white;
+            border-color: #6366f1;
+        }
+
+        .filter-btn:hover:not(.active) {
+            background: #27272a;
+            border-color: #52525b;
+        }
+
+        .task-list {
+            min-height: 120px;
+        }
+
+        .task-item {
+            background: #18181b;
+            border: 1px solid #27272a;
+            border-radius: 8px;
+            padding: 14px 16px;
+            margin-bottom: 8px;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 12px;
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+
+        .task-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border-color: #3f3f46;
+        }
+
+        .task-item.completed {
+            opacity: 0.6;
+            background: #0f172a;
+            border-color: #1e293b;
+        }
+
+        .task-checkbox {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid #6366f1;
+            cursor: pointer;
+            position: relative;
+            flex-shrink: 0;
+            transition: all 0.2s ease;
+        }
+
+        .task-checkbox:hover {
+            transform: scale(1.05);
+        }
+
+        .task-checkbox.checked {
+            background: #6366f1;
+            border-color: #6366f1;
+        }
+
+        .task-checkbox.checked::after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .task-content {
+            min-width: 0;
+        }
+
+        .task-text {
+            font-size: 14px;
+            margin-bottom: 4px;
+            color: #fafafa;
+            transition: all 0.2s ease;
+            word-wrap: break-word;
+        }
+
+        .task-item.completed .task-text {
+            text-decoration: line-through;
+            color: #71717a;
+        }
+
+        .task-meta {
+            display: flex;
+            gap: 8px;
+            font-size: 11px;
+            color: #71717a;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .priority-badge {
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .priority-high {
+            background: rgba(239, 68, 68, 0.15);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .priority-medium {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fcd34d;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .priority-low {
+            background: rgba(34, 197, 94, 0.15);
+            color: #86efac;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .delete-btn {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            transition: background 0.2s ease;
+        }
+
+        .delete-btn:hover {
+            background: #b91c1c;
+        }
+
+        .stats {
+            background: #18181b;
+            padding: 16px 24px;
+            border-top: 1px solid #27272a;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 16px;
+            text-align: center;
+        }
+
+        .stat-item h3 {
+            font-size: 24px;
+            color: #fafafa;
+            margin-bottom: 2px;
+            font-weight: 600;
+        }
+
+        .stat-item p {
+            color: #a1a1aa;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #71717a;
+        }
+
+        .empty-state h3 {
+            font-size: 1.2em;
+            margin-bottom: 6px;
+            color: #a1a1aa;
+            font-weight: 500;
+        }
+
+        .help-text {
+            font-size: 10px;
+            color: #71717a;
+            margin-top: 2px;
+        }
+
+        .alert {
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .alert.success {
+            background: rgba(34, 197, 94, 0.15);
+            color: #86efac;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .alert.error {
+            background: rgba(239, 68, 68, 0.15);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .alert.hidden {
+            display: none;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #18181b;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #3f3f46;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #52525b;
+        }
+
+        /* Completed tasks separator */
+        .completed-separator {
+            margin: 20px 0;
+            text-align: center;
+            color: #71717a;
+            font-size: 12px;
+            position: relative;
+            font-weight: 500;
+        }
+
+        .completed-separator hr {
+            border: none;
+            border-top: 1px solid #27272a;
+            margin: 0;
+        }
+
+        .completed-separator span {
+            background: #111113;
+            padding: 0 12px;
+            position: absolute;
+            top: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 8px;
+            }
+            
+            .header {
+                padding: 16px 20px;
+                flex-direction: column;
+                text-align: center;
+                gap: 12px;
+            }
+
+            .header-actions {
+                flex-direction: column;
+                gap: 8px;
+                width: 100%;
+            }
+
+            .sync-controls {
+                justify-content: center;
+            }
+            
+            .header h1 {
+                font-size: 1.6em;
+            }
+            
+            .add-task-section, .tasks-section {
+                padding: 16px 20px;
+            }
+            
+            .task-input-container {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+            
+            .filters {
+                justify-content: center;
+            }
+            
+            .task-item {
+                grid-template-columns: auto 1fr;
+                gap: 10px;
+                padding: 12px;
+            }
+            
+            .task-actions {
+                grid-column: 1 / -1;
+                justify-content: flex-end;
+                margin-top: 8px;
+            }
+            
+            .config-row {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .stats {
+                padding: 12px 20px;
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .stat-item h3 {
+                font-size: 20px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .sync-btn {
+                justify-content: center;
+            }
+            
+            .stats {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <h1>Task Tracker</h1>
+                <p>Stay organized with GitHub-synced tasks</p>
+            </div>
+            <div class="header-actions">
+                <div class="sync-controls">
+                    <button class="sync-btn" onclick="syncToGitHub()" id="pushBtn">
+                        <span>⬆️</span> Push
+                    </button>
+                    <button class="sync-btn" onclick="syncFromGitHub()" id="pullBtn">
+                        <span>⬇️</span> Pull
+                    </button>
+                    <button class="sync-btn" onclick="autoSync()" id="autoSyncBtn">
+                        <span>🔄</span> Auto: OFF
+                    </button>
+                </div>
+                <div class="sync-status">
+                    <div class="sync-indicator" id="syncIndicator"></div>
+                    <span id="syncStatus">Not configured</span>
+                    <button class="config-btn" onclick="toggleConfig()" id="configToggle">Setup GitHub</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="github-config hidden" id="githubConfig">
+            <h3 style="margin-bottom: 15px; color: #374151;">GitHub Configuration</h3>
+            <div id="alertContainer"></div>
+            
+            <div class="config-row">
+                <label>Token:</label>
+                <input type="password" class="config-input" id="githubToken" placeholder="ghp_xxxxxxxxxxxx">
+                <button class="config-btn" onclick="testConnection()">Test</button>
+                <div class="help-text" style="grid-column: 2 / -1;">Create a <strong>Classic</strong> token at github.com/settings/tokens with 'repo' permissions (starts with ghp_)</div>
+            </div>
+            
+            <div class="config-row">
+                <label>Repository:</label>
+                <input type="text" class="config-input" id="githubRepo" placeholder="username/repo-name">
+                <button class="config-btn" onclick="saveGitHubConfig()">Save</button>
+                <div class="help-text" style="grid-column: 2 / -1;">Format: owner/repo (e.g., johndoe/my-tasks)</div>
+            </div>
+            
+            <div class="config-row">
+                <label>File Path:</label>
+                <input type="text" class="config-input" id="githubPath" value="tasks.md" placeholder="tasks.md">
+                <button class="config-btn secondary" onclick="clearGitHubConfig()">Clear</button>
+                <div class="help-text" style="grid-column: 2 / -1;">Path where tasks will be stored (markdown format)</div>
+            </div>
+        </div>
+
+        <div class="add-task-section">
+            <div class="task-input-container">
+                <input type="text" class="task-input" id="taskInput" placeholder="What needs to be done?">
+                <select class="priority-select" id="prioritySelect">
+                    <option value="low">Low Priority</option>
+                    <option value="medium" selected>Medium Priority</option>
+                    <option value="high">High Priority</option>
+                </select>
+                <button class="add-btn" onclick="addTask()">Add Task</button>
+            </div>
+        </div>
+
+        <div class="tasks-section">
+            <div class="filters">
+                <button class="filter-btn active" onclick="filterTasks('all')">All</button>
+                <button class="filter-btn" onclick="filterTasks('pending')">Pending</button>
+                <button class="filter-btn" onclick="filterTasks('completed')">Completed</button>
+                <button class="filter-btn" onclick="filterTasks('high')">High Priority</button>
+            </div>
+
+            <div class="task-list" id="taskList">
+                <div class="empty-state">
+                    <h3>No tasks yet</h3>
+                    <p>Add your first task above to get started!</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-item">
+                <h3 id="totalTasks">0</h3>
+                <p>Total Tasks</p>
+            </div>
+            <div class="stat-item">
+                <h3 id="pendingTasks">0</h3>
+                <p>Pending</p>
+            </div>
+            <div class="stat-item">
+                <h3 id="completedTasks">0</h3>
+                <p>Completed</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Application state
+        let tasks = [];
+        let currentFilter = 'all';
+        let taskIdCounter = 1;
+        // The githubConfig object will hold non-sensitive parts of the config.
+        // The token is read from the input field on-demand for security.
+        let githubConfig = {};
+        let autoSyncEnabled = false;
+
+        // GitHub API configuration
+        const GITHUB_API_BASE = 'https://api.github.com';
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', function() {
+            loadFromStorage();
+            loadGitHubConfig();
+            updateTaskList();
+            updateStats();
+            updateSyncStatus();
+            
+            document.getElementById('taskInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addTask();
+                }
+            });
+
+            // Auto-sync every 5 minutes if enabled
+            setInterval(() => {
+                if (autoSyncEnabled && isGitHubConfigured()) {
+                    syncFromGitHub();
+                }
+            }, 5 * 60 * 1000);
+        });
+
+        // Storage functions
+        function saveToStorage() {
+            localStorage.setItem('taskTracker_tasks', JSON.stringify(tasks));
+            localStorage.setItem('taskTracker_counter', taskIdCounter.toString());
+        }
+
+        function loadFromStorage() {
+            const savedTasks = localStorage.getItem('taskTracker_tasks');
+            const savedCounter = localStorage.getItem('taskTracker_counter');
+            
+            if (savedTasks) {
+                tasks = JSON.parse(savedTasks);
+            }
+            
+            if (savedCounter) {
+                taskIdCounter = parseInt(savedCounter);
+            }
+        }
+
+        // Helper function to get the latest config directly from the UI
+        function getGitHubConfigFromUI() {
+            return {
+                token: document.getElementById('githubToken').value.trim(),
+                repo: document.getElementById('githubRepo').value.trim(),
+                path: document.getElementById('githubPath').value.trim() || 'tasks.md'
+            };
+        }
+
+        // GitHub configuration
+        function loadGitHubConfig() {
+            const saved = localStorage.getItem('taskTracker_github_config');
+            if (saved) {
+                const savedConfig = JSON.parse(saved);
+                // Load non-sensitive data
+                githubConfig.repo = savedConfig.repo || '';
+                githubConfig.path = savedConfig.path || 'tasks.md';
+                
+                document.getElementById('githubRepo').value = githubConfig.repo;
+                document.getElementById('githubPath').value = githubConfig.path;
+            }
+            // Token is intentionally not loaded from storage.
+            updateSyncStatus();
+        }
+
+        function saveGitHubConfig() {
+            const currentConfig = getGitHubConfigFromUI();
+            
+            if (currentConfig.repo) {
+                // Save only non-sensitive parts to localStorage
+                const configToSave = {
+                    repo: currentConfig.repo,
+                    path: currentConfig.path
+                };
+                localStorage.setItem('taskTracker_github_config', JSON.stringify(configToSave));
+
+                // Update in-memory config for the current session
+                githubConfig = currentConfig;
+
+                showAlert('GitHub configuration saved! Note: Your token is not stored and must be re-entered each session.', 'success');
+                updateSyncStatus();
+
+                if (currentConfig.token) {
+                    toggleConfig();
+                }
+            } else {
+                showAlert('Please fill in the repository name.', 'error');
+            }
+        }
+
+        function clearGitHubConfig() {
+            if (confirm('Clear GitHub configuration? This will not delete your tasks.')) {
+                localStorage.removeItem('taskTracker_github_config');
+                githubConfig = {};
+                document.getElementById('githubToken').value = '';
+                document.getElementById('githubRepo').value = '';
+                document.getElementById('githubPath').value = 'tasks.md';
+                updateSyncStatus();
+                showAlert('GitHub configuration cleared.', 'success');
+            }
+        }
+
+        function isGitHubConfigured() {
+            const config = getGitHubConfigFromUI();
+            return config.token && config.repo && config.path;
+        }
+
+        function toggleConfig() {
+            const config = document.getElementById('githubConfig');
+            const toggle = document.getElementById('configToggle');
+            
+            if (config.classList.contains('hidden')) {
+                config.classList.remove('hidden');
+                toggle.textContent = 'Hide Config';
+            } else {
+                config.classList.add('hidden');
+                toggle.textContent = isGitHubConfigured() ? 'Settings' : 'Setup GitHub';
+            }
+        }
+
+        function updateSyncStatus() {
+            const indicator = document.getElementById('syncIndicator');
+            const status = document.getElementById('syncStatus');
+            const toggle = document.getElementById('configToggle');
+            const config = getGitHubConfigFromUI();
+
+            const isReadyToSync = config.token && config.repo;
+
+            if (isReadyToSync) {
+                indicator.className = 'sync-indicator';
+                status.textContent = 'Ready to sync';
+                toggle.textContent = 'Settings';
+            } else if (config.repo || localStorage.getItem('taskTracker_github_config')) {
+                indicator.className = 'sync-indicator error';
+                status.textContent = 'Token required';
+                toggle.textContent = 'Settings';
+            } else {
+                indicator.className = 'sync-indicator error';
+                status.textContent = 'Not configured';
+                toggle.textContent = 'Setup GitHub';
+            }
+            
+            enableSyncButtons(isReadyToSync);
+        }
+
+        function enableSyncButtons(enabled) {
+            document.getElementById('pushBtn').disabled = !enabled;
+            document.getElementById('pullBtn').disabled = !enabled;
+            document.getElementById('autoSyncBtn').disabled = !enabled;
+        }
+
+        function setSyncStatus(status, type = 'normal') {
+            const indicator = document.getElementById('syncIndicator');
+            const statusText = document.getElementById('syncStatus');
+            
+            statusText.textContent = status;
+            
+            indicator.className = 'sync-indicator';
+            if (type === 'syncing') {
+                indicator.classList.add('syncing');
+            } else if (type === 'error') {
+                indicator.classList.add('error');
+            }
+        }
+
+        // Markdown conversion functions
+        function tasksToMarkdown() {
+            const now = new Date().toLocaleString();
+            let markdown = `# My Tasks\n\n*Last updated: ${now}*\n\n`;
+            
+            // Sort tasks by priority for display
+            const sortedTasks = [...tasks].sort((a, b) => {
+                const getPriorityValue = (priority) => {
+                    switch (priority) {
+                        case 'high': return 3;
+                        case 'medium': return 2;
+                        case 'low': return 1;
+                        default: return 2;
+                    }
+                };
+                return getPriorityValue(b.priority) - getPriorityValue(a.priority);
+            });
+            
+            // Group by priority
+            const priorities = ['high', 'medium', 'low'];
+            const priorityEmojis = { 'high': '🔥', 'medium': '🟡', 'low': '🟢' };
+            const priorityNames = { 'high': 'High Priority', 'medium': 'Medium Priority', 'low': 'Low Priority' };
+            
+            priorities.forEach(priority => {
+                const priorityTasks = sortedTasks.filter(t => t.priority === priority);
+                if (priorityTasks.length > 0) {
+                    markdown += `## ${priorityEmojis[priority]} ${priorityNames[priority]}\n\n`;
+                    
+                    priorityTasks.forEach(task => {
+                        const checkbox = task.completed ? '[x]' : '[ ]';
+                        markdown += `- ${checkbox} ${task.text} *(Created: ${task.createdAt})*\n`;
+                    });
+                    
+                    markdown += '\n';
+                }
+            });
+            
+            // Add metadata at the end for parsing
+            markdown += '---\n\n';
+            markdown += `*Generated by Task Tracker App | Task Count: ${tasks.length} | Counter: ${taskIdCounter}*\n`;
+            
+            return markdown;
+        }
+        
+        function markdownToTasks(markdownContent) {
+            const lines = markdownContent.split('\n');
+            const parsedTasks = [];
+            let currentPriority = 'medium';
+            let maxId = 0;
+            
+            // Extract counter from metadata
+            const counterMatch = markdownContent.match(/Counter:\s*(\d+)/);
+            if (counterMatch) {
+                taskIdCounter = parseInt(counterMatch[1]);
+            }
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                // Detect priority sections
+                if (line.includes('🔥') || line.includes('High Priority')) {
+                    currentPriority = 'high';
+                } else if (line.includes('🟡') || line.includes('Medium Priority')) {
+                    currentPriority = 'medium';
+                } else if (line.includes('🟢') || line.includes('Low Priority')) {
+                    currentPriority = 'low';
+                }
+                
+                // Parse task lines
+                if (line.startsWith('- [') && (line.includes('[ ]') || line.includes('[x]'))) {
+                    const completed = line.includes('[x]');
+                    
+                    // Extract task text and creation date
+                    const taskMatch = line.match(/- \[[x\s]\]\s+(.*?)\s*\*\(Created:\s*(.*?)\)\*/);
+                    if (taskMatch) {
+                        const text = taskMatch[1].trim();
+                        const createdAt = taskMatch[2].trim();
+                        
+                        // Generate a unique ID
+                        maxId++;
+                        
+                        parsedTasks.push({
+                            id: maxId,
+                            text: text,
+                            priority: currentPriority,
+                            completed: completed,
+                            createdAt: createdAt
+                        });
+                    }
+                }
+            }
+            
+            // Update the global counter to be higher than the max ID found
+            if (maxId >= taskIdCounter) {
+                taskIdCounter = maxId + 1;
+            }
+            
+            return parsedTasks;
+        }
+
+        // GitHub API functions
+        async function testConnection() {
+            const currentConfig = getGitHubConfigFromUI();
+            if (!isGitHubConfigured()) {
+                showAlert('Please provide GitHub token and repository.', 'error');
+                return;
+            }
+
+            setSyncStatus('Testing connection...', 'syncing');
+            
+            try {
+                const response = await fetch(`${GITHUB_API_BASE}/repos/${currentConfig.repo}`, {
+                    headers: {
+                        'Authorization': `token ${currentConfig.token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+
+                if (response.ok) {
+                    showAlert('✅ Connection successful! Repository found.', 'success');
+                    setSyncStatus('Connection successful');
+                } else if (response.status === 404) {
+                    showAlert('❌ Repository not found. Check the repository name.', 'error');
+                    setSyncStatus('Repository not found', 'error');
+                } else if (response.status === 401) {
+                    showAlert('❌ Authentication failed. Check your token.', 'error');
+                    setSyncStatus('Authentication failed', 'error');
+                } else {
+                    showAlert(`❌ Error: ${response.status} ${response.statusText}`, 'error');
+                    setSyncStatus('Connection failed', 'error');
+                }
+            } catch (error) {
+                showAlert(`❌ Network error: ${error.message}`, 'error');
+                setSyncStatus('Network error', 'error');
+            }
+        }
+
+        async function syncToGitHub() {
+            const currentConfig = getGitHubConfigFromUI();
+            if (!isGitHubConfigured()) {
+                showAlert('Please configure GitHub settings first.', 'error');
+                return;
+            }
+
+            setSyncStatus('Pushing to GitHub...', 'syncing');
+            
+            try {
+                // Convert tasks to markdown format
+                const markdownContent = tasksToMarkdown();
+
+                // Get current file SHA if it exists
+                let sha = null;
+                try {
+                    const getResponse = await fetch(`${GITHUB_API_BASE}/repos/${currentConfig.repo}/contents/${currentConfig.path}`, {
+                        headers: {
+                            'Authorization': `token ${currentConfig.token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    
+                    if (getResponse.ok) {
+                        const data = await getResponse.json();
+                        sha = data.sha;
+                    }
+                } catch (e) {
+                    // File doesn't exist yet, that's fine
+                }
+
+                // Upload/update file
+                const content = btoa(unescape(encodeURIComponent(markdownContent))); // Handle UTF-8 encoding
+                const putData = {
+                    message: `Update tasks - ${new Date().toISOString()}`,
+                    content: content,
+                    branch: 'main'
+                };
+                
+                if (sha) {
+                    putData.sha = sha;
+                }
+
+                const putResponse = await fetch(`${GITHUB_API_BASE}/repos/${currentConfig.repo}/contents/${currentConfig.path}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${currentConfig.token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(putData)
+                });
+
+                if (putResponse.ok) {
+                    showAlert('✅ Tasks successfully pushed to GitHub as markdown!', 'success');
+                    setSyncStatus('Synced to GitHub');
+                } else {
+                    const error = await putResponse.json();
+                    showAlert(`❌ Failed to push: ${error.message}`, 'error');
+                    setSyncStatus('Push failed', 'error');
+                }
+            } catch (error) {
+                showAlert(`❌ Sync error: ${error.message}`, 'error');
+                setSyncStatus('Sync failed', 'error');
+            }
+        }
+
+        async function syncFromGitHub() {
+            const currentConfig = getGitHubConfigFromUI();
+            if (!isGitHubConfigured()) {
+                showAlert('Please configure GitHub settings first.', 'error');
+                return;
+            }
+
+            setSyncStatus('Pulling from GitHub...', 'syncing');
+            
+            try {
+                const response = await fetch(`${GITHUB_API_BASE}/repos/${currentConfig.repo}/contents/${currentConfig.path}`, {
+                    headers: {
+                        'Authorization': `token ${currentConfig.token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const content = decodeURIComponent(escape(atob(data.content))); // Handle UTF-8 decoding
+                    
+                    // Parse markdown content
+                    const parsedTasks = markdownToTasks(content);
+                    
+                    tasks = parsedTasks;
+                    
+                    saveToStorage();
+                    updateTaskList();
+                    updateStats();
+                    
+                    showAlert('✅ Tasks successfully pulled from GitHub markdown!', 'success');
+                    setSyncStatus('Synced from GitHub');
+                } else if (response.status === 404) {
+                    showAlert('📁 No tasks file found on GitHub. Push your tasks first!', 'error');
+                    setSyncStatus('No remote file found', 'error');
+                } else {
+                    showAlert(`❌ Failed to pull: ${response.status} ${response.statusText}`, 'error');
+                    setSyncStatus('Pull failed', 'error');
+                }
+            } catch (error) {
+                showAlert(`❌ Sync error: ${error.message}`, 'error');
+                setSyncStatus('Sync failed', 'error');
+            }
+        }
+
+        function autoSync() {
+            autoSyncEnabled = !autoSyncEnabled;
+            const btn = document.getElementById('autoSyncBtn');
+            btn.innerHTML = `<span>🔄</span> Auto: ${autoSyncEnabled ? 'ON' : 'OFF'}`;
+            
+            if (autoSyncEnabled) {
+                showAlert('🔄 Auto-sync enabled! Tasks will sync every 5 minutes.', 'success');
+            } else {
+                showAlert('⏸️ Auto-sync disabled.', 'success');
+            }
+        }
+
+        function showAlert(message, type) {
+            const container = document.getElementById('alertContainer');
+            container.innerHTML = `<div class="alert ${type}">${message}</div>`;
+            
+            setTimeout(() => {
+                const alert = container.querySelector('.alert');
+                if (alert) {
+                    alert.classList.add('hidden');
+                }
+            }, 5000);
+        }
+
+        // Task management functions
+        function addTask() {
+            const taskInput = document.getElementById('taskInput');
+            const prioritySelect = document.getElementById('prioritySelect');
+            const taskText = taskInput.value.trim();
+
+            if (taskText === '') {
+                alert('Please enter a task!');
+                return;
+            }
+
+            const newTask = {
+                id: taskIdCounter++,
+                text: taskText,
+                priority: prioritySelect.value,
+                completed: false,
+                createdAt: new Date().toLocaleString()
+            };
+
+            tasks.push(newTask);
+            taskInput.value = '';
+            
+            saveToStorage();
+            updateTaskList();
+            updateStats();
+        }
+
+        function toggleTask(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (task) {
+                task.completed = !task.completed;
+                saveToStorage();
+                updateTaskList();
+                updateStats();
+            }
+        }
+
+        function deleteTask(taskId) {
+            if (confirm('Are you sure you want to delete this task?')) {
+                tasks = tasks.filter(t => t.id !== taskId);
+                saveToStorage();
+                updateTaskList();
+                updateStats();
+            }
+        }
+
+        function filterTasks(filter) {
+            currentFilter = filter;
+            
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            updateTaskList();
+        }
+
+        function updateTaskList() {
+            const taskList = document.getElementById('taskList');
+            let filteredTasks = tasks;
+
+            switch (currentFilter) {
+                case 'pending':
+                    filteredTasks = tasks.filter(t => !t.completed);
+                    break;
+                case 'completed':
+                    filteredTasks = tasks.filter(t => t.completed);
+                    break;
+                case 'high':
+                    filteredTasks = tasks.filter(t => t.priority === 'high');
+                    break;
+            }
+
+            // Enhanced sorting: incomplete first, then by priority (high > medium > low)
+            filteredTasks.sort((a, b) => {
+                // First: incomplete tasks come before completed tasks
+                if (a.completed !== b.completed) {
+                    return a.completed ? 1 : -1;
+                }
+                
+                // Second: sort by priority (high > medium > low)
+                const getPriorityValue = (priority) => {
+                    switch (priority) {
+                        case 'high': return 3;
+                        case 'medium': return 2;
+                        case 'low': return 1;
+                        default: return 2; // default to medium
+                    }
+                };
+                
+                const aPriorityValue = getPriorityValue(a.priority);
+                const bPriorityValue = getPriorityValue(b.priority);
+                
+                if (aPriorityValue !== bPriorityValue) {
+                    return bPriorityValue - aPriorityValue; // Higher priority value comes first
+                }
+                
+                // Third: sort by creation date (newer first within same priority)
+                return new Date(b.createdAt) - new Date(a.createdAt);
+            });
+
+            if (filteredTasks.length === 0) {
+                taskList.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No ${currentFilter === 'all' ? '' : currentFilter} tasks</h3>
+                        <p>${currentFilter === 'all' ? 'Add your first task above to get started!' : 'Try a different filter or add some tasks!'}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Group tasks for visual separation
+            const incompleteTasks = filteredTasks.filter(t => !t.completed);
+            const completedTasks = filteredTasks.filter(t => t.completed);
+            
+            let html = '';
+            
+            // Add incomplete tasks
+            if (incompleteTasks.length > 0) {
+                html += incompleteTasks.map(task => `
+                    <div class="task-item ${task.completed ? 'completed' : ''}">
+                        <div class="task-checkbox ${task.completed ? 'checked' : ''}" 
+                             onclick="toggleTask(${task.id})"></div>
+                        <div class="task-content">
+                            <div class="task-text">${task.text}</div>
+                            <div class="task-meta">
+                                <span class="priority-badge priority-${task.priority}">${task.priority}</span>
+                                <span>Created: ${task.createdAt}</span>
+                            </div>
+                        </div>
+                        <div class="task-actions">
+                            <button class="delete-btn" onclick="deleteTask(${task.id})">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            // Add separator if both groups exist
+            if (incompleteTasks.length > 0 && completedTasks.length > 0 && currentFilter === 'all') {
+                html += `
+                    <div class="completed-separator">
+                        <hr>
+                        <span>✅ Completed Tasks</span>
+                    </div>
+                `;
+            }
+            
+            // Add completed tasks
+            if (completedTasks.length > 0) {
+                html += completedTasks.map(task => `
+                    <div class="task-item ${task.completed ? 'completed' : ''}">
+                        <div class="task-checkbox ${task.completed ? 'checked' : ''}" 
+                             onclick="toggleTask(${task.id})"></div>
+                        <div class="task-content">
+                            <div class="task-text">${task.text}</div>
+                            <div class="task-meta">
+                                <span class="priority-badge priority-${task.priority}">${task.priority}</span>
+                                <span>Created: ${task.createdAt}</span>
+                            </div>
+                        </div>
+                        <div class="task-actions">
+                            <button class="delete-btn" onclick="deleteTask(${task.id})">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            taskList.innerHTML = html;
+        }
+
+        function updateStats() {
+            const totalTasks = tasks.length;
+            const pendingTasks = tasks.filter(t => !t.completed).length;
+            const completedTasks = tasks.filter(t => t.completed).length;
+
+            document.getElementById('totalTasks').textContent = totalTasks;
+            document.getElementById('pendingTasks').textContent = pendingTasks;
+            document.getElementById('completedTasks').textContent = completedTasks;
+        }
+    </script>
+</body>
+</html>
