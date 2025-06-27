@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src https://api.github.com;">
     <title>Task Tracker - GitHub Sync</title>
     <style>
         * {
@@ -669,9 +670,6 @@
                     <button class="sync-btn" onclick="syncFromGitHub()" id="pullBtn">
                         <span>⬇️</span> Pull
                     </button>
-                    <button class="sync-btn" onclick="autoSync()" id="autoSyncBtn">
-                        <span>🔄</span> Auto: OFF
-                    </button>
                 </div>
                 <div class="sync-status">
                     <div class="sync-indicator" id="syncIndicator"></div>
@@ -682,28 +680,31 @@
         </div>
 
         <div class="github-config hidden" id="githubConfig">
-            <h3 style="margin-bottom: 15px; color: #374151;">GitHub Configuration</h3>
+            <h3 style="margin-bottom: 15px; color: #fafafa;">GitHub Configuration</h3>
             <div id="alertContainer"></div>
             
             <div class="config-row">
                 <label>Token:</label>
-                <input type="password" class="config-input" id="githubToken" placeholder="ghp_xxxxxxxxxxxx">
+                <input type="password" class="config-input" id="githubToken" placeholder="github_pat_xxxxxxxxxxxx">
                 <button class="config-btn" onclick="testConnection()">Test</button>
-                <div class="help-text" style="grid-column: 2 / -1;">Create a <strong>Classic</strong> token at github.com/settings/tokens with 'repo' permissions (starts with ghp_)</div>
+                <div class="help-text" style="grid-column: 2 / -1;">
+                    Create a <strong>Fine-grained token</strong> at github.com/settings/tokens/new.
+                    Select your repository, then grant <strong>Read and Write</strong> access to <strong>Contents</strong>.
+                </div>
             </div>
             
             <div class="config-row">
                 <label>Repository:</label>
                 <input type="text" class="config-input" id="githubRepo" placeholder="username/repo-name">
-                <button class="config-btn" onclick="saveGitHubConfig()">Save</button>
+                <button class="config-btn" onclick="saveGitHubConfig()">Save Repo & Path</button>
                 <div class="help-text" style="grid-column: 2 / -1;">Format: owner/repo (e.g., johndoe/my-tasks)</div>
             </div>
             
             <div class="config-row">
                 <label>File Path:</label>
                 <input type="text" class="config-input" id="githubPath" value="tasks.md" placeholder="tasks.md">
-                <button class="config-btn secondary" onclick="clearGitHubConfig()">Clear</button>
-                <div class="help-text" style="grid-column: 2 / -1;">Path where tasks will be stored (markdown format)</div>
+                <button class="config-btn secondary" onclick="clearGitHubConfig()">Clear Config</button>
+                <div class="help-text" style="grid-column: 2 / -1;">Path where tasks will be stored (e.g., tasks.md)</div>
             </div>
         </div>
 
@@ -754,7 +755,6 @@
         let currentFilter = 'all';
         let taskIdCounter = 1;
         let githubConfig = {};
-        let autoSyncEnabled = false;
 
         // GitHub API configuration
         const GITHUB_API_BASE = 'https://api.github.com';
@@ -772,13 +772,6 @@
                     addTaskWithPriority('medium'); // Default to medium priority on Enter
                 }
             });
-
-            // Auto-sync every 5 minutes if enabled
-            setInterval(() => {
-                if (autoSyncEnabled && isGitHubConfigured()) {
-                    syncFromGitHub();
-                }
-            }, 5 * 60 * 1000);
         });
 
         // Storage functions
@@ -879,7 +872,6 @@
         function enableSyncButtons(enabled) {
             document.getElementById('pushBtn').disabled = !enabled;
             document.getElementById('pullBtn').disabled = !enabled;
-            document.getElementById('autoSyncBtn').disabled = !enabled;
         }
 
         function setSyncStatus(status, type = 'normal') {
@@ -1142,27 +1134,19 @@
             }
         }
 
-        function autoSync() {
-            autoSyncEnabled = !autoSyncEnabled;
-            const btn = document.getElementById('autoSyncBtn');
-            btn.innerHTML = `<span>🔄</span> Auto: ${autoSyncEnabled ? 'ON' : 'OFF'}`;
-            
-            if (autoSyncEnabled) {
-                showAlert('🔄 Auto-sync enabled! Tasks will sync every 5 minutes.', 'success');
-            } else {
-                showAlert('⏸️ Auto-sync disabled.', 'success');
-            }
-        }
+        async function syncFromGitHub() {
 
         function showAlert(message, type) {
             const container = document.getElementById('alertContainer');
-            container.innerHTML = `<div class="alert ${type}">${message}</div>`;
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert ${type}`;
+            alertDiv.textContent = message; // Use textContent for security
+            
+            container.innerHTML = ''; // Clear previous alerts
+            container.appendChild(alertDiv);
             
             setTimeout(() => {
-                const alert = container.querySelector('.alert');
-                if (alert) {
-                    alert.classList.add('hidden');
-                }
+                alertDiv.classList.add('hidden');
             }, 5000);
         }
 
@@ -1245,6 +1229,8 @@
 
         function updateTaskList() {
             const taskList = document.getElementById('taskList');
+            taskList.innerHTML = ''; // Clear previous content
+
             let filteredTasks = tasks;
 
             switch (currentFilter) {
@@ -1259,105 +1245,99 @@
                     break;
             }
 
-            // Enhanced sorting: incomplete first, then by priority (high > medium > low)
+            // Enhanced sorting
             filteredTasks.sort((a, b) => {
-                // First: incomplete tasks come before completed tasks
-                if (a.completed !== b.completed) {
-                    return a.completed ? 1 : -1;
-                }
-                
-                // Second: sort by priority (high > medium > low)
-                const getPriorityValue = (priority) => {
-                    switch (priority) {
-                        case 'high': return 3;
-                        case 'medium': return 2;
-                        case 'low': return 1;
-                        default: return 2; // default to medium
-                    }
-                };
-                
-                const aPriorityValue = getPriorityValue(a.priority);
-                const bPriorityValue = getPriorityValue(b.priority);
-                
-                if (aPriorityValue !== bPriorityValue) {
-                    return bPriorityValue - aPriorityValue; // Higher priority value comes first
-                }
-                
-                // Third: sort by creation date (newer first within same priority)
+                if (a.completed !== b.completed) return a.completed ? 1 : -1;
+                const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1 };
+                const priorityA = priorityOrder[a.priority] || 2;
+                const priorityB = priorityOrder[b.priority] || 2;
+                if (priorityA !== priorityB) return priorityB - priorityA;
                 return new Date(b.createdAt) - new Date(a.createdAt);
             });
 
             if (filteredTasks.length === 0) {
-                taskList.innerHTML = `
-                    <div class="empty-state">
-                        <h3>No ${currentFilter === 'all' ? '' : currentFilter} tasks</h3>
-                        <p>${currentFilter === 'all' ? 'Add your first task above to get started!' : 'Try a different filter or add some tasks!'}</p>
-                    </div>
-                `;
+                const emptyState = document.createElement('div');
+                emptyState.className = 'empty-state';
+                
+                const heading = document.createElement('h3');
+                heading.textContent = `No ${currentFilter === 'all' ? '' : currentFilter} tasks`;
+                
+                const paragraph = document.createElement('p');
+                paragraph.textContent = currentFilter === 'all' ? 'Add your first task above to get started!' : 'Try a different filter or add some tasks!';
+                
+                emptyState.appendChild(heading);
+                emptyState.appendChild(paragraph);
+                taskList.appendChild(emptyState);
                 return;
             }
 
-            // Group tasks for visual separation
+            const createTaskElement = (task) => {
+                const item = document.createElement('div');
+                item.className = `task-item ${task.completed ? 'completed' : ''}`;
+
+                const checkbox = document.createElement('div');
+                checkbox.className = `task-checkbox ${task.completed ? 'checked' : ''}`;
+                checkbox.onclick = () => toggleTask(task.id);
+
+                const content = document.createElement('div');
+                content.className = 'task-content';
+
+                const text = document.createElement('div');
+                text.className = 'task-text';
+                text.textContent = task.text; // Securely set text content
+
+                const meta = document.createElement('div');
+                meta.className = 'task-meta';
+
+                const priorityBadge = document.createElement('span');
+                priorityBadge.className = `priority-badge priority-${task.priority}`;
+                priorityBadge.textContent = task.priority;
+                priorityBadge.title = 'Click to change priority';
+                priorityBadge.onclick = () => changePriority(task.id);
+
+                const createdDate = document.createElement('span');
+                createdDate.textContent = `Created: ${task.createdAt}`;
+
+                meta.appendChild(priorityBadge);
+                meta.appendChild(createdDate);
+
+                const actions = document.createElement('div');
+                actions.className = 'task-actions';
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.onclick = () => deleteTask(task.id);
+
+                actions.appendChild(deleteBtn);
+                
+                content.appendChild(text);
+                content.appendChild(meta);
+                
+                item.appendChild(checkbox);
+                item.appendChild(content);
+                item.appendChild(actions);
+
+                return item;
+            };
+
             const incompleteTasks = filteredTasks.filter(t => !t.completed);
             const completedTasks = filteredTasks.filter(t => t.completed);
-            
-            let html = '';
-            
-            // Add incomplete tasks
-            if (incompleteTasks.length > 0) {
-                html += incompleteTasks.map(task => `
-                    <div class="task-item ${task.completed ? 'completed' : ''}">
-                        <div class="task-checkbox ${task.completed ? 'checked' : ''}" 
-                             onclick="toggleTask(${task.id})"></div>
-                        <div class="task-content">
-                            <div class="task-text">${task.text}</div>
-                            <div class="task-meta">
-                                <span class="priority-badge priority-${task.priority}" 
-                                      onclick="changePriority(${task.id})" 
-                                      title="Click to change priority">${task.priority}</span>
-                                <span>Created: ${task.createdAt}</span>
-                            </div>
-                        </div>
-                        <div class="task-actions">
-                            <button class="delete-btn" onclick="deleteTask(${task.id})">Delete</button>
-                        </div>
-                    </div>
-                `).join('');
-            }
-            
-            // Add separator if both groups exist
+
+            incompleteTasks.forEach(task => taskList.appendChild(createTaskElement(task)));
+
             if (incompleteTasks.length > 0 && completedTasks.length > 0 && currentFilter === 'all') {
-                html += `
-                    <div class="completed-separator">
-                        <hr>
-                        <span>✅ Completed Tasks</span>
-                    </div>
-                `;
+                const separator = document.createElement('div');
+                separator.className = 'completed-separator';
+                const hr = document.createElement('hr');
+                const span = document.createElement('span');
+                span.textContent = '✅ Completed Tasks';
+                separator.appendChild(hr);
+                separator.appendChild(span);
+                taskList.appendChild(separator);
             }
-            
-            // Add completed tasks
-            if (completedTasks.length > 0) {
-                html += completedTasks.map(task => `
-                    <div class="task-item ${task.completed ? 'completed' : ''}">
-                        <div class="task-checkbox ${task.completed ? 'checked' : ''}" 
-                             onclick="toggleTask(${task.id})"></div>
-                        <div class="task-content">
-                            <div class="task-text">${task.text}</div>
-                            <div class="task-meta">
-                                <span class="priority-badge priority-${task.priority}" 
-                                      onclick="changePriority(${task.id})" 
-                                      title="Click to change priority">${task.priority}</span>
-                                <span>Created: ${task.createdAt}</span>
-                            </div>
-                        </div>
-                        <div class="task-actions">
-                            <button class="delete-btn" onclick="deleteTask(${task.id})">Delete</button>
-                        </div>
-                    </div>
-                `).join('');
-            }
-            
-            taskList.innerHTML = html;
+
+            completedTasks.forEach(task => taskList.appendChild(createTaskElement(task)));
         }
 
         function updateStats() {
