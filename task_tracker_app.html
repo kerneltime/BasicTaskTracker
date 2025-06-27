@@ -1135,6 +1135,48 @@
         }
 
         async function syncFromGitHub() {
+            if (!isGitHubConfigured()) {
+                showAlert('Please configure GitHub settings first.', 'error');
+                return;
+            }
+
+            setSyncStatus('Pulling from GitHub...', 'syncing');
+            
+            try {
+                const response = await fetch(`${GITHUB_API_BASE}/repos/${githubConfig.repo}/contents/${githubConfig.path}`, {
+                    headers: {
+                        'Authorization': `token ${githubConfig.token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const content = decodeURIComponent(escape(atob(data.content))); // Handle UTF-8 decoding
+                    
+                    // Parse markdown content
+                    const parsedTasks = markdownToTasks(content);
+                    
+                    tasks = parsedTasks;
+                    
+                    saveToStorage();
+                    updateTaskList();
+                    updateStats();
+                    
+                    showAlert('✅ Tasks successfully pulled from GitHub markdown!', 'success');
+                    setSyncStatus('Synced from GitHub');
+                } else if (response.status === 404) {
+                    showAlert('📁 No tasks file found on GitHub. Push your tasks first!', 'error');
+                    setSyncStatus('No remote file found', 'error');
+                } else {
+                    showAlert(`❌ Failed to pull: ${response.status} ${response.statusText}`, 'error');
+                    setSyncStatus('Pull failed', 'error');
+                }
+            } catch (error) {
+                showAlert(`❌ Sync error: ${error.message}`, 'error');
+                setSyncStatus('Sync failed', 'error');
+            }
+        }
 
         function showAlert(message, type) {
             const container = document.getElementById('alertContainer');
